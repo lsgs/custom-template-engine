@@ -96,5 +96,6 @@
             ]
         }
     ],
-    "framework-version": 9
+    "framework-version": 9,
+    "permissions": ["redcap_data_entry_form_top"]
 }
