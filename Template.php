@@ -135,11 +135,17 @@ class Template
      */
     private function parseEventData($event_data)
     {
+        $this->instruments = REDCap::getInstrumentNames();
         $user = strtolower(USERID);
-        $rights = REDCap::getUserRights($user);
+        if ($user == '[survey respondent]') {
+            $rights = array(
+                $user => array('data_export_instruments' => implode('',array_map(function($form){return "[$form,3]";},array_keys($this->instruments)))) // remove identifier fields when fillAndSaveSurvey
+            );
+        } else {
+            $rights = REDCap::getUserRights($user);
+        }
         $rights_object = new ExportRights($rights);  // populate a rights object with this user's instrument-level rights
         $external_fields = array();
-        $this->instruments = REDCap::getInstrumentNames();
         foreach ($this->instruments as $unique_name => $label)
         {
             $external_fields[] = "{$unique_name}_complete";

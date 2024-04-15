@@ -32,7 +32,7 @@ class ExportRights {
 
 		if (!is_array($rights) || empty($rights)) {
 
-			throw new InvalidArgumentException("Error: array output from REDCap::getUserRights required.");
+			throw new \InvalidArgumentException("Error: array output from REDCap::getUserRights required.");
 
 		}  // end elseif
 

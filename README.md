@@ -44,7 +44,9 @@ The module users the PHP template engine, Smarty, to fill in the templates with 
 
 ## File Upload Fields
 
-File upload fields on data entry forms (not survey forms) with the action tag `@CUSTOM-TEMPLATE-UPLOAD` will give an option for either selecting a file for upload (as normal) or selecting one of the project's templates from a dropdown list. If the user selscts a template, it will be filled from the current record's data and automatically saved to the field.
+File upload fields with the action tag `@CUSTOM-TEMPLATE-UPLOAD` will give an option for either selecting a file for upload (as normal) or selecting one of the project's templates from a dropdown list. If the user selects a template, it will be filled from the current record's data and automatically saved to the field. 
+
+Note that template filling is performed using the user's data export permissions. When performed in survey mode the "Remove Tagged Identifiers" permission is utilised to avoid exposing PII in the unauthenticated survey context.
 
 ##  Web Application Load Balancing
 

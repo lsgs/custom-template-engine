@@ -455,7 +455,7 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
                     $current_timestamp = date("YmdHis");
                     $ip = $_SERVER["REMOTE_ADDR"];
                     $description = isset($instance) ? "[instance = $instance],\n$field_name = '$docs_id'" : "$field_name = '$docs_id'";
-                    $sql = str_replace("'", "''", $sql);
+                    $sql = '';//str_replace("'", "''", $sql);
 
                     $query = $this->framework->createQuery();
                     $query->add("INSERT INTO $redcap_log_event_table (ts, user, ip, page, project_id, event, object_type, sql_log, pk, event_id, data_values, description) VALUES (?, ?, ?, 'ExternalModules/index.php', ?, 'DOC_UPLOAD', 'redcap_data', ?, ?, ?, ?, 'Upload Document')",
@@ -485,8 +485,10 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
         } elseif ($edoc_storage_option == '2') {
             // S3
             global $amazon_s3_key, $amazon_s3_secret, $amazon_s3_bucket;
-            $s3 = new S3($amazon_s3_key, $amazon_s3_secret, SSL); if (isset($GLOBALS['amazon_s3_endpoint']) && $GLOBALS['amazon_s3_endpoint'] != '') $s3->setEndpoint($GLOBALS['amazon_s3_endpoint']);
-            $s3->deleteObject($amazon_s3_bucket, $file);
+            //$s3 = new S3($amazon_s3_key, $amazon_s3_secret, SSL); if (isset($GLOBALS['amazon_s3_endpoint']) && $GLOBALS['amazon_s3_endpoint'] != '') $s3->setEndpoint($GLOBALS['amazon_s3_endpoint']);
+            //$s3->deleteObject($amazon_s3_bucket, $file);
+            $s3 = \Files::s3client();
+			$s3->deleteObject(array('Bucket' => $GLOBALS['amazon_s3_bucket'], 'Key' => $file));
         } else {
             // Local
             @unlink(EDOC_PATH . $file);
@@ -506,6 +508,7 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
      */
     private function saveToFileRepository($filename, $file_contents, $file_extension)
     {
+        global $lang;
         // Upload the compiled report to the File Repository
         $errors = array();
         $database_success = FALSE;
@@ -588,7 +591,7 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
 
         if ($database_success === FALSE)
         {
-            $context_msg = "<b>{$lang['global_01']}{$lang['colon']} {$lang['docs_47']}</b><br>" . $lang['docs_65'] . ' ' . maxUploadSizeFileRespository().'MB'.$lang['period'];
+            $context_msg = "<b>{$lang['global_01']}{$lang['colon']} {$lang['docs_47']}</b><br>" . $lang['docs_65'] . ' ' . \maxUploadSize().'MB'.$lang['period'];
 
             if (SUPER_USER)
             {
@@ -1245,7 +1248,7 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
                     }
                 }
             }
-            catch (Exception $e)
+            catch (\Exception $e)
             {
                 $errors[] = "<b>ERROR</b> [" . $e->getCode() . "] LINE [" . $e->getLine() . "] FILE [" . $e->getFile() . "] " . str_replace("Undefined index", "Field name does not exist", $e->getMessage());
             }
@@ -1350,7 +1353,7 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
             $filled_header = empty($header) ? "" : $doc->saveHTML($header);
             $filled_footer = empty($footer)? "" : $doc->saveHTML($footer);
         }
-        catch (Exception $e)
+        catch (\Exception $e)
         {
             $errors[] = "<b>ERROR</b> [" . $e->getCode() . "] LINE [" . $e->getLine() . "] FILE [" . $e->getFile() . "] " . str_replace("Undefined index", "Field name does not exist", $e->getMessage());
         }
@@ -2367,7 +2370,7 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
 				$secondary_pk_label_fields = array_keys(getBracketedFields($secondary_pk_label, true, true, true));
 				// If has at least one field piped in the label, then get all the data for these fields and insert one at a time below
 				if (!empty($secondary_pk_label_fields)) {
-					$piping_record_data = Records::getData('array', $records, $secondary_pk_label_fields, $event_ids);
+					$piping_record_data = \Records::getData('array', $records, $secondary_pk_label_fields, $event_ids);
 				}
 			}
             // Get back-end data for the secondary PK field
@@ -2385,14 +2388,14 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
 				// Set the label for this loop (label may be different if using piping in it)
 				if (isset($piping_record_data)) {
 					// Piping: pipe record data into label for each record
-					$this_secondary_pk_label = Piping::replaceVariablesInLabel($secondary_pk_label, $row['record'], $event_ids, 1, $piping_record_data);
+					$this_secondary_pk_label = \Piping::replaceVariablesInLabel($secondary_pk_label, $row['record'], $event_ids, 1, $piping_record_data);
 				} else {
 					// Static label for all records
 					$this_secondary_pk_label = $secondary_pk_label;
 				}
 				// If the secondary unique field is a date/time field in MDY or DMY format, then convert to that format
 				if ($convert_date_format) {
-					$row['value'] = DateTimeRC::datetimeConvert($row['value'], 'ymd', substr($val_type, -3));
+					$row['value'] = \DateTimeRC::datetimeConvert($row['value'], 'ymd', substr($val_type, -3));
 				}
 				// Set text value
 				$this_string = "(" . remBr($this_secondary_pk_label . " " .
@@ -2401,7 +2404,7 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
 							   ($boldSecondaryPkValue ? "</b>" : "") .
 							   ")";
 				// Add HTML around string (unless specified otherwise)
-				$extra_record_labels[$Proj->eventInfo[$row['event_id']]['arm_num']][$row['record']] = ($removeHtml) ? $this_string : RCView::span(array('class'=>$cssClass), $this_string);
+				$extra_record_labels[$Proj->eventInfo[$row['event_id']]['arm_num']][$row['record']] = ($removeHtml) ? $this_string : \RCView::span(array('class'=>$cssClass), $this_string);
 			}
 		}
 		// [Retrieval of ALL records] If Custom Record Label is specified (such as "[last_name], [first_name]"), then parse and display
@@ -2430,7 +2433,7 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
 						$extra_record_labels[$this_arm][$this_record] = '';
 					}
 					// Add HTML around string (unless specified otherwise)
-					$extra_record_labels[$this_arm][$this_record] .= ($removeHtml) ? $this_string : RCView::span(array('class'=>$cssClass), $this_string);
+					$extra_record_labels[$this_arm][$this_record] .= ($removeHtml) ? $this_string : \RCView::span(array('class'=>$cssClass), $this_string);
 				}
 			}
 			unset($customRecordLabels);
@@ -2504,15 +2507,16 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
         }
 
         $custom_labels = $this->getCustomRecordLabelsSecondaryFieldAllRecords(array_column($records, $id_field), true, "all", false, "");
+        $participant_options = null;
         foreach($records as $record)
         {
             $to_add = $record[$id_field];
-	    if ($previously_printed == null) { $previously_printed = array();}  // PHP8 compatability fix, Dan Evans 2023-06-09
+	        if ($previously_printed == null) { $previously_printed = array();}  // PHP8 compatability fix, Dan Evans 2023-06-09
             if (!in_array($to_add, $previously_printed)) 
             {
                 if ($to_add == null) {$to_add = array();}  // PHP8 compatability fix, Dan Evans 2023-06-09
                 if ($participant_options == null) {$participant_options = array();}  // PHP8 compatability fix, Dan Evans 2023-06-09
-		if (!in_array($to_add, array_keys($participant_options), true))
+		        if (!in_array($to_add, array_keys($participant_options), true))
                 {
                     $arm_num = REDCap::isLongitudinal() ? array_pop(explode("arm_", $record["redcap_event_name"])) : "1";;
                     $label = $custom_labels[$arm_num][$to_add]; 
@@ -2850,9 +2854,18 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
         }
     }
 
-    public function redcap_data_entry_form_top($project_id, $record, $instrument, $event_id, $group_id, $repeat_instance) 
-    {
+    public function redcap_data_entry_form_top($project_id, $record, $instrument, $event_id, $group_id, $repeat_instance) {
+        $this->page_top($project_id, $record, $instrument, $event_id, $group_id, $repeat_instance);
+    }
+
+    function redcap_survey_page_top($project_id, $record, $instrument, $event_id, $group_id, $survey_hash, $response_id, $repeat_instance) {
+        $this->page_top($project_id, $record, $instrument, $event_id, $group_id, $repeat_instance, true, $survey_hash, $response_id);
+    }
+
+    protected function page_top($project_id, $record, $instrument, $event_id, $group_id, $repeat_instance, $is_survey=false, $survey_hash=null, $response_id=null) {
         global $Proj, $lang;
+
+        //if ($is_survey) return; // Not yet implemented - need secure way of calling FillAndSave in survey context
 
         // is there a file upload field on this form that has the @UPLOAD-FROM-TEMPLATE tag?
         $ff = false;
@@ -2884,12 +2897,17 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
             $templateSelect .= "<option value=\"$n\">$template</option>";
         }
         $templateSelect .= '</select>';
-        $uploadDialogContent = '<div class="upload-source my-2 d-none"><div class="font-weight-bold"><i class="fas fa-cube mr-1"></i>Custom Template Engine</div><div>Upload option: browse and select file, or select a template and generate:'.$templateSelect.'</div><button class="upload-source-btn btn btn-primaryrc mt-2" style="font-size:14px;display:none;"><i class="fas fa-upload mr-1"></i>Fill template and upload</button></div>';
+        $btnClass = ($is_survey) ? 'btn-defaultrc' : 'btn-primaryrc';
+        $uploadDialogContent = '<div class="upload-source my-2 d-none"><div class="font-weight-bold"><i class="fas fa-cube mr-1"></i>Custom Template Engine</div><div>Upload option: browse and select file, or select a template and generate:'.$templateSelect.'</div><button class="upload-source-btn btn '.$btnClass.' mt-2" style="font-size:14px;display:none;"><i class="fas fa-upload mr-1"></i>Fill template and upload</button></div>';
         echo $uploadDialogContent;
 
-        $fillAndSaveUrl = $this->getUrl('FillAndSave.php');
-        $fillAndSaveUrl .= "&id=".urlencode($record)."&event_id=$event_id&instrument=$instrument&instance=$repeat_instance";
-
+        if ($is_survey) {
+            $fillAndSaveUrl = $this->getUrl('FillAndSaveSurvey.php', true, true);
+            $fillAndSaveUrl .= "&id=".urlencode($record)."&event_id=$event_id&instrument=$instrument&instance=$repeat_instance&s=".htmlentities($_GET['s'],ENT_QUOTES);
+        } else {
+            $fillAndSaveUrl = $this->getUrl('FillAndSave.php');
+            $fillAndSaveUrl .= "&id=".urlencode($record)."&event_id=$event_id&instrument=$instrument&instance=$repeat_instance";
+        }
         ?>
         <script type="text/javascript">
             $(document).ready(function(){
@@ -2910,7 +2928,8 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
                                 dataType: 'json',
                                 data: { 
                                     template_name: templateName,
-                                    field_name: $('#field_name').val()
+                                    field_name: $('#field_name').val(),
+                                    redcap_csrf_token: '<?=$this->getCSRFToken()?>'
                                 },
                                 success: function(data) {
                                     console.log(data);
@@ -2947,6 +2966,35 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
             });
         </script>
         <?php
+    }
+
+    /**
+     * fillAndSaveSurvey
+     * Noauth, so check that record/event/instrument/instance and survey hash are congruent, then call fillAndSave()
+     * to take $_POST from file upload field dialog, generates PDF of specified template for current record and uploads it to the field/event.
+     */
+    public function fillAndSaveSurvey() {
+        global $project_id;
+        $record = rawurldecode(urldecode(htmlentities($_REQUEST['id'], ENT_QUOTES)));
+        $event_id = htmlentities($_REQUEST['event_id'], ENT_QUOTES);
+        $field_name = explode('-', htmlentities($_REQUEST['field_name'], ENT_QUOTES))[0];
+        $surveyHash = htmlentities($_REQUEST['s'], ENT_QUOTES);
+        $instance = htmlentities($_REQUEST['instance'], ENT_QUOTES);
+        $instance = (empty($instance)) ? '1' : $instance;
+
+        $sql = "select s.project_id,sr.record,sp.event_id,m.form_name,sr.instance,m.field_name,sp.hash
+        from redcap_surveys_participants sp
+        inner join redcap_surveys_response sr on sp.participant_id=sr.participant_id
+        inner join redcap_surveys s on sp.survey_id=s.survey_id
+        inner join redcap_metadata m on s.project_id=m.project_id and s.form_name=m.form_name
+        where s.project_id=?
+        and record=?
+        and event_id=?
+        and coalesce(sr.instance,1)=?
+        and m.field_name=?
+        and sp.hash=?";
+        $q = $this->query($sql, [$project_id, $record, $event_id, $instance, $field_name,$surveyHash]);
+        return (db_num_rows($q) > 0) ? $this->fillAndSave() : false;
     }
 
     /**
