@@ -177,24 +177,10 @@ class Template
                     */
                     $event_fields_and_vals[$field_name] = array();
 
-                    if ($rights_object->field_to_rights_value[$field_name] !== "1") {  // check if data needs to be hidden
+                    if ($rights_object->field_to_rights_value[$field_name] === "1" ||
+                        ($rights_object->field_to_rights_value[$field_name] === "3" && $this->dictionary[$field_name]["identifier"] !== "y") ) {  // check if data needs to be hidden
 
-                        if (($rights_object->field_to_rights_value[$field_name] === "3") && ($this->dictionary[$field_name]["identifier"] === "y")) {  // remove all identifiers, and this is an identifier
-
-                            $event_fields_and_vals[$field_name]["allValues"] = $this->removed_replacement;
-
-                        } else if ($rights_object->field_to_rights_value[$field_name] === "2") {  // de-identified rights, so remove marked identifiers, freetext and date/time fields
-
-                            $event_fields_and_vals[$field_name]["allValues"] = $this->de_identified_replacement;
-
-                        } else { // no rights, so remove everything
-
-                            $event_fields_and_vals[$field_name]["allValues"] = $this->no_rights_replacement;
-
-                        }  // end else
-
-                    } else {  // full rights, so treat this data normally
-
+                        // full rights, or not tagged as phi so treat this data normally
                         $all_choices = explode("|", $this->dictionary[$field_name]["select_choices_or_calculations"]);
                         $all_choices = array_map(function ($v) {
                             $v = strip_tags($v);
@@ -212,6 +198,22 @@ class Template
 
                         $event_fields_and_vals[$field_name]["allValues"] = implode(", ", explode(",", $value));
 
+
+                    } else {  
+
+                        if (($rights_object->field_to_rights_value[$field_name] === "3")) {  // remove all identifiers, and this is an identifier
+
+                            $event_fields_and_vals[$field_name]["allValues"] = $this->removed_replacement;
+
+                        } else if ($rights_object->field_to_rights_value[$field_name] === "2") {  // de-identified rights, so remove marked identifiers, freetext and date/time fields
+
+                            $event_fields_and_vals[$field_name]["allValues"] = $this->de_identified_replacement;
+
+                        } else { // no rights, so remove everything
+
+                            $event_fields_and_vals[$field_name]["allValues"] = $this->no_rights_replacement;
+
+                        }  // end else
                     }  // end else
 
                 } else { // non-checkbox fields, so check more thorougly
@@ -514,8 +516,8 @@ class Template
             }
             
             // Check symmetry of ()
-            if ($parts == null) { $parts = array();}  // PHP8 compatability patch Dan Evans, 2023-06-09
-	    if (sizeof(array_keys($parts, "(")) != sizeof(array_keys($parts, ")")))
+            $parts = str_split($syntax); // fixed LS 2024-04-17 if ($parts == null) { $parts = array();}  // PHP8 compatability patch Dan Evans, 2023-06-09
+	        if (sizeof(array_keys($parts, "(")) != sizeof(array_keys($parts, ")")))
             {
                 $errors[] = "<b>ERROR</b> [EDITOR] LINE [$line_num] Odd number of parenthesis (. You've either added an extra parenthesis, or forgot to close one.";
             }
@@ -527,6 +529,7 @@ class Template
             }
             
             $parts = $this->getSyntaxParts($syntax);
+            $previous = '';
 
             foreach($parts as $index => $part)
             {
@@ -1110,8 +1113,18 @@ class Template
         $user = strtolower(USERID);
         //$rights = REDCap::getUserRights($user);
 
-        $template = REDCap::getData("json", $record, null, null, null, TRUE, FALSE, TRUE, null, TRUE);
-
+        $template = REDCap::getData(
+            "json", // $return_format 
+            $record, //$records 
+            null,   // $fields
+            null,   // $events 
+            null,   // $groups 
+            TRUE,   // $combine_checkbox_values
+            FALSE,  // $exportDataAccessGroups
+            TRUE,   // $exportSurveyFields
+            null,   // $filterLogic
+            TRUE    // $exportAsLabels
+        );
         $json = json_decode($template, true);
 
         $repeatable_instruments_parsed = array();
@@ -1270,9 +1283,9 @@ class Template
             }
             $filled_template = $doc->saveHTML();
         }
-        catch (Exception $e)
+        catch (\Exception $e)
         {
-            throw new Exception("Error on line " . $e->getLine() . ": " . $e->getMessage());
+            throw new \Exception("Error on line " . $e->getLine() . ": " . $e->getMessage());
         }
 
         return $filled_template;
