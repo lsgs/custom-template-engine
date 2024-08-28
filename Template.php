@@ -8,7 +8,7 @@ namespace BCCHR\CustomTemplateEngine;
 require_once "vendor/autoload.php";
 
 use REDCap;
-use Smarty;
+use Smarty\Smarty;
 use DOMDocument;
 require_once "./ExportRights.php";  // class to manage instrument-level rights
 
@@ -35,6 +35,7 @@ class Template
     private $removed_replacement = "[ID REMOVED]";  // rights value 3
     private $no_rights_replacement = "[NO RIGHTS]";  // rights value 0
     private $logical_operators = array("eq", "ne", "neq", "gt", "lt", "ge", "gte", "lte", "le", "not", "or", "and");
+    private $formatting_operators = array("|date_format:''");  // used to provide date formatting via Smarty
 
     /**
      * Class constructor.
@@ -42,16 +43,20 @@ class Template
      * @param String $templates_dir     Directory where templates are stored.
      * @param String $compiled_dir      Directory where templates compiled by Smarty are stored.
      */
-    function __construct($templates_dir, $compiled_dir) 
-    {
+
+    public function setPaths($templates_dir, $compiled_dir) {
+    /*
+    **lazy loading to avoid the constructor, for the EM framework recommendations
+    */
         $this->dictionary = REDCap::getDataDictionary('array', false);
         $this->instruments = REDCap::getInstrumentNames();
         $this->smarty = new Smarty();
         $this->smarty->setTemplateDir($templates_dir);
         $this->smarty->setCompileDir($compiled_dir);
         $this->smarty->assign("showLabelAndRow", $this->show_label_and_row);
-    }
 
+    }  // end setPaths()
+ 
     /**
      * Checks whether all the siblings that come before or after an html element are empty
      *
@@ -135,17 +140,15 @@ class Template
      */
     private function parseEventData($event_data)
     {
-        $this->instruments = REDCap::getInstrumentNames();
         $user = strtolower(USERID);
-        if ($user == '[survey respondent]') {
-            $rights = array(
-                $user => array('data_export_instruments' => implode('',array_map(function($form){return "[$form,3]";},array_keys($this->instruments)))) // remove identifier fields when fillAndSaveSurvey
-            );
-        } else {
-            $rights = REDCap::getUserRights($user);
-        }
-        $rights_object = new ExportRights($rights);  // populate a rights object with this user's instrument-level rights
+        $rights = REDCap::getUserRights($user);
+        $rights_object = new ExportRights();  // create a rights object
+        $rights_object->setRights($rights);  // set the rights within this object
+        print "<!-- Rights for $user\n ";
+        print_r($rights);
+        print "-->\n";
         $external_fields = array();
+        $this->instruments = REDCap::getInstrumentNames();
         foreach ($this->instruments as $unique_name => $label)
         {
             $external_fields[] = "{$unique_name}_complete";
@@ -177,10 +180,24 @@ class Template
                     */
                     $event_fields_and_vals[$field_name] = array();
 
-                    if ($rights_object->field_to_rights_value[$field_name] === "1" ||
-                        ($rights_object->field_to_rights_value[$field_name] === "3" && $this->dictionary[$field_name]["identifier"] !== "y") ) {  // check if data needs to be hidden
+                    if ($rights_object->field_to_rights_value[$field_name] !== "1") {  // check if data needs to be hidden
 
-                        // full rights, or not tagged as phi so treat this data normally
+                        if (($rights_object->field_to_rights_value[$field_name] === "3") && ($this->dictionary[$field_name]["identifier"] === "y")) {  // remove all identifiers, and this is an identifier
+
+                            $event_fields_and_vals[$field_name]["allValues"] = $this->removed_replacement;
+
+                        } else if ($rights_object->field_to_rights_value[$field_name] === "2") {  // de-identified rights, so remove marked identifiers, freetext and date/time fields
+
+                            $event_fields_and_vals[$field_name]["allValues"] = $this->de_identified_replacement;
+
+                        } else { // no rights, so remove everything
+
+                            $event_fields_and_vals[$field_name]["allValues"] = $this->no_rights_replacement;
+
+                        }  // end else
+
+                    } else {  // full rights, so treat this data normally
+
                         $all_choices = explode("|", $this->dictionary[$field_name]["select_choices_or_calculations"]);
                         $all_choices = array_map(function ($v) {
                             $v = strip_tags($v);
@@ -198,22 +215,6 @@ class Template
 
                         $event_fields_and_vals[$field_name]["allValues"] = implode(", ", explode(",", $value));
 
-
-                    } else {  
-
-                        if (($rights_object->field_to_rights_value[$field_name] === "3")) {  // remove all identifiers, and this is an identifier
-
-                            $event_fields_and_vals[$field_name]["allValues"] = $this->removed_replacement;
-
-                        } else if ($rights_object->field_to_rights_value[$field_name] === "2") {  // de-identified rights, so remove marked identifiers, freetext and date/time fields
-
-                            $event_fields_and_vals[$field_name]["allValues"] = $this->de_identified_replacement;
-
-                        } else { // no rights, so remove everything
-
-                            $event_fields_and_vals[$field_name]["allValues"] = $this->no_rights_replacement;
-
-                        }  // end else
                     }  // end else
 
                 } else { // non-checkbox fields, so check more thorougly
@@ -516,8 +517,8 @@ class Template
             }
             
             // Check symmetry of ()
-            $parts = str_split($syntax); // fixed LS 2024-04-17 if ($parts == null) { $parts = array();}  // PHP8 compatability patch Dan Evans, 2023-06-09
-	        if (sizeof(array_keys($parts, "(")) != sizeof(array_keys($parts, ")")))
+            if ($parts == null) { $parts = array();}  // PHP8 compatability patch Dan Evans, 2023-06-09
+	    if (sizeof(array_keys($parts, "(")) != sizeof(array_keys($parts, ")")))
             {
                 $errors[] = "<b>ERROR</b> [EDITOR] LINE [$line_num] Odd number of parenthesis (. You've either added an extra parenthesis, or forgot to close one.";
             }
@@ -529,12 +530,16 @@ class Template
             }
             
             $parts = $this->getSyntaxParts($syntax);
-            $previous = '';
 
             foreach($parts as $index => $part)
             {
                 switch ($part) {
                     case "if":
+                    /*
+                    ** date formatting added from suggestion of user @Seaborg on github: https://github.com/BCCHR-IT/custom-template-engine/issues/42#issuecomment-1719068536
+                    */
+                    case "|date_format:'%d-%m-%Y'":
+                        break;
                     case "elseif":
                         // Must have either a ( or ) or $redcap or $showLabelAndRow or in_array after
                         if ($index != sizeof($parts) - 1)
@@ -588,7 +593,6 @@ class Template
                         if ($index != sizeof($parts) - 1)
                         {
                             $next_part = $parts[$index + 1];
-                            if ($next_part !== ")" && !in_array($next_part, $this->logical_operators))
                             {
                                 $errors[] = "<b>ERROR</b> [EDITOR] LINE [$line_num] Invalid <strong>$next_part</strong> after <strong>)</strong>.";
                             }
@@ -669,9 +673,14 @@ class Template
                         {
                             $next_part = $parts[$index + 1];
                             if ($next_part !== ")" 
-                                && $next_part != "," 
-                                && $next_part != "]"
-                                && !in_array($next_part, $this->logical_operators))
+                                && ($next_part != ",") 
+                                && ($next_part != "]")
+                                // && !in_array($next_part, $this->logical_operators))
+                                /*
+                                ** date formatting code added from suggestion by @Seaborg on github: https://github.com/BCCHR-IT/custom-template-engine/issues/42#issuecomment-1719068536
+                                */
+                                && !in_array($next_part, $this->logical_operators)
+                                && ($next_part !== "|date_format:''"))
                             {
                                 $errors[] = "<b>ERROR</b> [EDITOR] LINE [$line_num] Invalid <strong>$next_part</strong> after string value within ''.";
                             }
@@ -738,11 +747,13 @@ class Template
                                 $errors[] = "<b>ERROR</b> [EDITOR] LINE [$line_num] Unclosed or empty <strong>]</strong> bracket.";
                             }
 
-                            if ($next_part !== ")" 
-                                && $next_part !== "["
-                                && !in_array($next_part, $this->logical_operators))
+                            if (($next_part !== ")") 
+                                && ($next_part !== "[")
+                                && !in_array($next_part, $this->logical_operators)
+                                && !in_array($next_part, $this->formatting_operators))
                             {
-                                $errors[] = "<b>ERROR</b> [EDITOR] LINE [$line_num] Invalid <strong>'$next_part'</strong> after <strong>$part</strong>.";
+                                // $test = in_array($next_part, $this->logical_operators) ? 'yes' : implode('-', $this->logical_operators);
+                                $errors[] = "<b>ERROR</b> [EDITOR] LINE [$line_num] Invalidd <strong>'$next_part'</strong> after <strong>$part</strong>.";
                             }
                         }
                         break;
@@ -812,6 +823,7 @@ class Template
                                 $part[0] != "\"" && 
                                 $part[strlen($part) - 1] != "'" && 
                                 $part[strlen($part) - 1] != "\"" &&
+                                $part[strlen($part) -1] != "|" && // needed for parsing datetime hints
                                 !$this->isValidFieldOrEvent($part))
                         {
                             $errors[] = "<b>ERROR</b> [EDITOR] LINE [$line_num] <strong>$part</strong> is not a valid event/field/syntax in this project";
@@ -1113,18 +1125,8 @@ class Template
         $user = strtolower(USERID);
         //$rights = REDCap::getUserRights($user);
 
-        $template = REDCap::getData(
-            "json", // $return_format 
-            $record, //$records 
-            null,   // $fields
-            null,   // $events 
-            null,   // $groups 
-            TRUE,   // $combine_checkbox_values
-            FALSE,  // $exportDataAccessGroups
-            TRUE,   // $exportSurveyFields
-            null,   // $filterLogic
-            TRUE    // $exportAsLabels
-        );
+        $template = REDCap::getData("json", $record, null, null, null, TRUE, FALSE, TRUE, null, TRUE);
+
         $json = json_decode($template, true);
 
         $repeatable_instruments_parsed = array();
@@ -1283,9 +1285,9 @@ class Template
             }
             $filled_template = $doc->saveHTML();
         }
-        catch (\Exception $e)
+        catch (Exception $e)
         {
-            throw new \Exception("Error on line " . $e->getLine() . ": " . $e->getMessage());
+            throw new Exception("Error on line " . $e->getLine() . ": " . $e->getMessage());
         }
 
         return $filled_template;

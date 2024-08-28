@@ -52,11 +52,29 @@ Note that template filling is performed using the user's data export permissions
 
 WARNING:  This module is not currently able to support REDCap instances using load balancers due to the requirement to save templates to the file system.
 
-##  Other Issues
-
-- This module is unable to properly embed images with PHP version >= 7.4
-
 ##  Changelog
+* v4.1.4
+  * bug fixes for backward compatibility, as well as addressing a bug with ampersands in filenames
+  * required array value type checking done by in_array() to true (so '12.4' and 12.4 are not considered a match)
+* v4.1.3
+  * upgraded packages to address security isues:
+    * smarty/smarty (v5.1.0 => v5.3.0)
+  * backward compatibility fix for pre v14 versions of REDCap (without access to getDataTables() function)
+  * bug fix for Smarty "class not found" during template creation; implemented lazy loading.
+* v4.1.2
+  * Basic date formatting through Smarty; can format with dd-mm-yyyy formatting by passing formatting information through the template as ```{$redcap['visit_date']|date_format:'%d-%m-%Y'}``` This will format the visit_date into two digit day, two digit month, four digit year. **Please note**: this is currently the only other format allowed outside the default REDCap display.
+  * Added code to process the new format returned by REDCap::getUserRightsdata()
+  * Fixed bug found when downloading a zip file of batched reports (modified headers set before download)
+  * Modified code to store data into the proper redcap_dataX tables introduced in RC v14.0.
+  * Upgrading packages to address security issues:
+    * dompdf/dompdf (v2.0.3 => v3.0.0)
+      * php-font-lib (0.5.4 => 1.0.0)
+      * php-svg-lib (0.5.0 => 1.0.0)
+    * masterminds/html5 (2.8.1 => 2.9.0)
+    * sabberworm/php-css-parser (8.4.0 => v8.5.1)
+    * smarty/smarty (v4.3.4 => v5.1.0)
+  * New packages installed per upgrades above:
+    * polyfill-mbstring (v1.29.0)
 * v4.0.0
   * Minimal REDCap version is v12.4
   * Implemented support for the RC v12.4+ instrument-level data export permissions.
