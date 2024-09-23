@@ -141,15 +141,25 @@ class Template
      */
     private function parseEventData($event_data)
     {
+        $this->instruments = REDCap::getInstrumentNames();
         $user = strtolower(USERID);
-        $rights = REDCap::getUserRights($user);
+        if ($user=='[survey respondent]') {
+            $forms3 = array_fill_keys(array_keys($this->instruments), '3'); // Use "remove identifiers" permission when filling template on survey
+            $rights = array(
+                $user => array(
+                    'forms' => $forms3,
+                    'forms_export' => $forms3
+                )
+            );
+        } else {
+            $rights = REDCap::getUserRights($user);
+        }
         $rights_object = new ExportRights();  // create a rights object
         $rights_object->setRights($rights);  // set the rights within this object
         //print "<!-- Rights for $user\n ";
         //print_r($rights);
         //print "-->\n";
         $external_fields = array();
-        $this->instruments = REDCap::getInstrumentNames();
         foreach ($this->instruments as $unique_name => $label)
         {
             $external_fields[] = "{$unique_name}_complete";
@@ -181,21 +191,17 @@ class Template
                     */
                     $event_fields_and_vals[$field_name] = array();
 
-                    if ($rights_object->field_to_rights_value[$field_name] !== "1") {  // check if data needs to be hidden
+                    if ($rights_object->field_to_rights_value[$field_name] == "0") {
 
-                        if (($rights_object->field_to_rights_value[$field_name] === "3") && ($this->dictionary[$field_name]["identifier"] === "y")) {  // remove all identifiers, and this is an identifier
+                        $event_fields_and_vals[$field_name]["allValues"] = $this->no_rights_replacement;
 
-                            $event_fields_and_vals[$field_name]["allValues"] = $this->removed_replacement;
+                    } else if ($rights_object->field_to_rights_value[$field_name] === "2" && $this->dictionary[$field_name]["identifier"] === "y") {
 
-                        } else if ($rights_object->field_to_rights_value[$field_name] === "2") {  // de-identified rights, so remove marked identifiers, freetext and date/time fields
+                        $event_fields_and_vals[$field_name]["allValues"] = $this->de_identified_replacement;
 
-                            $event_fields_and_vals[$field_name]["allValues"] = $this->de_identified_replacement;
+                    } else if ($rights_object->field_to_rights_value[$field_name] === "3" && $this->dictionary[$field_name]["identifier"] === "y") {
 
-                        } else { // no rights, so remove everything
-
-                            $event_fields_and_vals[$field_name]["allValues"] = $this->no_rights_replacement;
-
-                        }  // end else
+                        $event_fields_and_vals[$field_name]["allValues"] = $this->removed_replacement;
 
                     } else {  // full rights, so treat this data normally
 
