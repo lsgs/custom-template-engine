@@ -43,6 +43,67 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
 
     const FILEUPLOAD_FIELD_TAG = '@CUSTOM-TEMPLATE-UPLOAD'; // tag file upload fields to enable upload of file by populating a template
 
+    // taken from Dompdf\Adapter\CPDF: page sizes in points
+    static $PAPER_SIZES = [
+        "4a0" => [0.0, 0.0, 4767.87, 6740.79],
+        "2a0" => [0.0, 0.0, 3370.39, 4767.87],
+        "a0" => [0.0, 0.0, 2383.94, 3370.39],
+        "a1" => [0.0, 0.0, 1683.78, 2383.94],
+        "a2" => [0.0, 0.0, 1190.55, 1683.78],
+        "a3" => [0.0, 0.0, 841.89, 1190.55],
+        "a4" => [0.0, 0.0, 595.28, 841.89],
+        "a5" => [0.0, 0.0, 419.53, 595.28],
+        "a6" => [0.0, 0.0, 297.64, 419.53],
+        "a7" => [0.0, 0.0, 209.76, 297.64],
+        "a8" => [0.0, 0.0, 147.40, 209.76],
+        "a9" => [0.0, 0.0, 104.88, 147.40],
+        "a10" => [0.0, 0.0, 73.70, 104.88],
+        "b0" => [0.0, 0.0, 2834.65, 4008.19],
+        "b1" => [0.0, 0.0, 2004.09, 2834.65],
+        "b2" => [0.0, 0.0, 1417.32, 2004.09],
+        "b3" => [0.0, 0.0, 1000.63, 1417.32],
+        "b4" => [0.0, 0.0, 708.66, 1000.63],
+        "b5" => [0.0, 0.0, 498.90, 708.66],
+        "b6" => [0.0, 0.0, 354.33, 498.90],
+        "b7" => [0.0, 0.0, 249.45, 354.33],
+        "b8" => [0.0, 0.0, 175.75, 249.45],
+        "b9" => [0.0, 0.0, 124.72, 175.75],
+        "b10" => [0.0, 0.0, 87.87, 124.72],
+        "c0" => [0.0, 0.0, 2599.37, 3676.54],
+        "c1" => [0.0, 0.0, 1836.85, 2599.37],
+        "c2" => [0.0, 0.0, 1298.27, 1836.85],
+        "c3" => [0.0, 0.0, 918.43, 1298.27],
+        "c4" => [0.0, 0.0, 649.13, 918.43],
+        "c5" => [0.0, 0.0, 459.21, 649.13],
+        "c6" => [0.0, 0.0, 323.15, 459.21],
+        "c7" => [0.0, 0.0, 229.61, 323.15],
+        "c8" => [0.0, 0.0, 161.57, 229.61],
+        "c9" => [0.0, 0.0, 113.39, 161.57],
+        "c10" => [0.0, 0.0, 79.37, 113.39],
+        "ra0" => [0.0, 0.0, 2437.80, 3458.27],
+        "ra1" => [0.0, 0.0, 1729.13, 2437.80],
+        "ra2" => [0.0, 0.0, 1218.90, 1729.13],
+        "ra3" => [0.0, 0.0, 864.57, 1218.90],
+        "ra4" => [0.0, 0.0, 609.45, 864.57],
+        "sra0" => [0.0, 0.0, 2551.18, 3628.35],
+        "sra1" => [0.0, 0.0, 1814.17, 2551.18],
+        "sra2" => [0.0, 0.0, 1275.59, 1814.17],
+        "sra3" => [0.0, 0.0, 907.09, 1275.59],
+        "sra4" => [0.0, 0.0, 637.80, 907.09],
+        "letter" => [0.0, 0.0, 612.00, 792.00],
+        "half-letter" => [0.0, 0.0, 396.00, 612.00],
+        "legal" => [0.0, 0.0, 612.00, 1008.00],
+        "ledger" => [0.0, 0.0, 1224.00, 792.00],
+        "tabloid" => [0.0, 0.0, 792.00, 1224.00],
+        "executive" => [0.0, 0.0, 521.86, 756.00],
+        "folio" => [0.0, 0.0, 612.00, 936.00],
+        "commercial #10 envelope" => [0.0, 0.0, 684.00, 297.00],
+        "catalog #10 1/2 envelope" => [0.0, 0.0, 648.00, 864.00],
+        "8.5x11" => [0.0, 0.0, 612.00, 792.00],
+        "8.5x14" => [0.0, 0.0, 612.00, 1008.00],
+        "11x17" => [0.0, 0.0, 792.00, 1224.00],
+    ];
+
     /**
      * Initialize class variables.
      */
@@ -663,11 +724,15 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
      * @since 3.0
      * @return String   PDF contents
      */
-    private function formatPDFContents($header = "", $footer = "", $main)
+    private function formatPDFContents($header = "", $footer = "", $main, $paperSize="letter", $paperOrientation="portrait")
     {
 
         if (isset($main) && !empty($main))
         {
+            $paperSize = (array_key_exists(strtolower($paperSize), self::$PAPER_SIZES)) ? strtolower($paperSize) : "letter";
+            $paperDim = self::$PAPER_SIZES[$paperSize];
+            $pageNumX = (($paperOrientation=="portrait") ? $paperDim[2] : $paperDim[3])-100;
+            $pageNumY = (($paperOrientation=="portrait") ? $paperDim[3] : $paperDim[2])-30;
             $doc = new DOMDocument();
             $doc->loadHtml("
                 <!DOCTYPE html>
@@ -684,11 +749,10 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
                             if (isset(\$pdf)) {
                                 \$pdf->page_script('
                                     \$font = \$fontMetrics->get_font(\"Arial, Helvetica, sans-serif\", \"normal\");
-                                    \$size = 12;
+                                    \$size = 10;
                                     \$pageNum = \"Page \" . \$PAGE_NUM . \" of \" . \$PAGE_COUNT;
-                                    \$y = 750;
-                                    \$pdf->text(520, \$y, \$pageNum, \$font, \$size);
-                                    \$pdf->text(36, \$y, date(\"Y-m-d H:i:s\", time()), \$font, \$size);
+                                    \$pdf->text($pageNumX, $pageNumY, \$pageNum, \$font, \$size);
+                                    \$pdf->text(36, $pageNumY, date(\"Y-m-d H:i:s\", time()), \$font, \$size);
                                 ');
                             }
                         </script>
@@ -1142,7 +1206,10 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
      */
     public function createPDF($dompdf_obj, $header, $footer, $main, $fileOrTemplateName="")
     {
-        $contents = $this->formatPDFContents($header, $footer, $main);
+        // Setup the paper size and orientation
+        list($paperSize, $paperOrientation) = $this->getPaperSettings($fileOrTemplateName);
+
+        $contents = $this->formatPDFContents($header, $footer, $main, $paperSize, $paperOrientation);
 
         // Add page numbers to the footer of every page
         $dompdf_obj->set_option("isHtml5ParserEnabled", true);
@@ -1151,8 +1218,6 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
 
         $dompdf_obj->set_option('isRemoteEnabled', TRUE);
 
-        // Setup the paper size and orientation
-        list($paperSize, $paperOrientation) = $this->getPaperSettings($fileOrTemplateName);
         $dompdf_obj->setPaper($paperSize, $paperOrientation);
 
         // Render the HTML as PDF
@@ -1245,6 +1310,8 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
                 /**
                  * Fill the template with each record data, then add them to the ZIP
                  */
+                // Setup the paper size and orientation
+                list($paperSize, $paperOrientation) = $this->getPaperSettings($template_filename);
                 foreach($records as $record)
                 {
                     $filename = $this->escape(basename($template_filename, "_$this->pid.html") . "_$record");
@@ -1260,7 +1327,7 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
                     $footer = empty($footer) ? "" : $doc->saveHTML($footer);
                     $main = $doc->saveHTML($main);
 
-                    $contents = $this->formatPDFContents($header, $footer, $main);
+                    $contents = $this->formatPDFContents($header, $footer, $main, $paperSize, $paperOrientation);
 
                     if (!empty($contents))
                     {
@@ -1272,7 +1339,7 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
                         $dompdf->set_option('isRemoteEnabled', TRUE);
 
                         // Setup the paper size and orientation
-                        $dompdf->setPaper("letter", "portrait");
+                        $dompdf->setPaper($paperSize, $paperOrientation);
                         // Render the HTML as PDF
                         $dompdf->render();
                         $filled_template_pdf_content = $dompdf->output();
