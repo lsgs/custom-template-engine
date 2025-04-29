@@ -2582,6 +2582,7 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
      */
     function getDropdownOptions($filter = false)
     {
+        $previously_printed = array();
         $rights = REDCap::getUserRights($this->userid);
         $id_field = REDCap::getRecordIdField();
         $records = json_decode(REDCap::getData("json", null, array($id_field), null, $rights[$this->userid]["group_id"]), true);
@@ -3064,7 +3065,21 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
                                 success: function(data) {
                                     console.log(data);
                                     window.parent.dataEntryFormValuesChanged = true;
-                                    window.parent.window.stopUpload(data.result,data.field_name,data.doc_id,data.save_filename,data.record,data.doc_size,data.event_id,data.file_download_page,data.file_delete_page,data.doc_id_hash,data.instance);
+                                    // DataEntrySurvey.js: function stopUpload(success,this_field,doc_id,doc_name,doc_size,event_id,download_page,delete_page,doc_id_hash,instance,isSigField){                                    
+                                    window.parent.window.stopUpload(
+                                        data.result,
+                                        data.field_name,
+                                        data.doc_id,
+                                        data.save_filename,
+                                        // data.record, // record arg removed between v14.9.1 and v15.2.4
+                                        data.doc_size,
+                                        data.event_id,
+                                        data.file_download_page,
+                                        data.file_delete_page,
+                                        data.doc_id_hash,
+                                        data.instance
+                                    );
+   
                                     if (data.inlineActionTag) {
                                         window.parent.window.$(function(){ window.parent.window.initInlineImages(data.field_name) });
                                     }
