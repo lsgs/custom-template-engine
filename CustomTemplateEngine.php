@@ -437,7 +437,7 @@ class CustomTemplateEngine extends \ExternalModules\AbstractExternalModule
 
         $stored_name = date('YmdHis') . "_pid" . $this->pid . "_" . generateRandomHash(6) . ".pdf";
 
-        $upload_success = file_put_contents(EDOC_PATH . $stored_name, $file_contents);
+        $upload_success = file_put_contents(EDOC_PATH . \Files::getLocalStorageSubfolder($this->pid, true) . $stored_name, $file_contents);
 
         if ($upload_success !== FALSE)
         {
